@@ -1,37 +1,24 @@
 import os, json, random, base64, datetime as dt
 import pandas as pd
-import streamlit as st    
-# Google Analytics tracking
-GA_TRACKING_ID = "G-TEKF7YR4QH"
-GA_TAG = f"""
-<script async src="https://www.googletagmanager.com/gtag/js?id={GA_TRACKING_ID}"></script>
-<script>
-  window.dataLayer = window.dataLayer || [];
-  function gtag(){{dataLayer.push(arguments);}}
-  gtag('js', new Date());
-  gtag('config', '{GA_TRACKING_ID}');
-</script>
-"""
-st.markdown(GA_TAG, unsafe_allow_html=True)
-
+import streamlit as st
 
 # =========================
-# DARTS CHALLENGE (40 rounds)
+# DARTS CHALLENGE — 40 ROUNDS (fixed)
 # =========================
-
 st.set_page_config(page_title="Darts Challenge", page_icon="🎯", layout="centered")
 
 # ----- Access Code (Cloud + local) -----
 try:
     ACCESS_CODE = st.secrets["ACCESS_CODE"]
 except Exception:
-    ACCESS_CODE = os.getenv("ACCESS_CODE", "FREEPLAY2025")
+    ACCESS_CODE = os.getenv("ACCESS_CODE", "FREEPLAY2025")  # fallback
 
 if "authed" not in st.session_state:
     st.session_state.authed = False
+
 if not st.session_state.authed:
     st.title("🎯 Darts Challenge")
-    st.caption("Enter the access code to play. (Change it later in Settings → Secrets)")
+    st.caption("Enter the access code to play.")
     code = st.text_input("Access Code", type="password")
     if st.button("Enter"):
         if code.strip() == ACCESS_CODE:
@@ -39,8 +26,30 @@ if not st.session_state.authed:
             st.success("✅ Access granted!")
             st.rerun()
         else:
-            st.error("❌ Invalid code.")
+            st.error("❌ Invalid code. Try again.")
     st.stop()
+
+# ----- Google Analytics (GA4) -----
+GA_MEASUREMENT_ID = None
+try:
+    GA_MEASUREMENT_ID = st.secrets.get("GA_MEASUREMENT_ID")
+except Exception:
+    GA_MEASUREMENT_ID = os.getenv("GA_MEASUREMENT_ID")
+
+if GA_MEASUREMENT_ID:
+    st.markdown(
+        f"""
+        <!-- Google tag (gtag.js) -->
+        <script async src="https://www.googletagmanager.com/gtag/js?id={GA_MEASUREMENT_ID}"></script>
+        <script>
+          window.dataLayer = window.dataLayer || [];
+          function gtag(){{dataLayer.push(arguments);}}
+          gtag('js', new Date());
+          gtag('config', '{GA_MEASUREMENT_ID}');
+        </script>
+        """,
+        unsafe_allow_html=True,
+    )
 
 # ====== Constants ======
 TOTAL_ROUNDS = 40
@@ -52,7 +61,7 @@ def get_target(round_num: int):
     return TARGET_CYCLE[(round_num - 1) % 4]
 
 def scaled_mean(level: int, min_mean: float, max_mean: float) -> float:
-    # linearly scale mean from min_mean at level 1 to max_mean at level 20
+    # linearly scale mean from min_mean (level 1) to max_mean (level 20)
     return min_mean + (level - 1) * (max_mean - min_mean) / 19.0
 
 def simulate_bot_score(level: int, target):
@@ -84,7 +93,7 @@ FICTIONAL_NAMES = [
     "Jasper Longden","Trent Maybury","Wes Crampton","Dale Henshaw","Byron Loxley"
 ]
 
-# ====== Save/Load code helpers ======
+# ====== Save/Load (copy/paste codes) ======
 def b64_encode(obj: dict) -> str:
     raw = json.dumps(obj, separators=(",", ":"), ensure_ascii=False).encode("utf-8")
     return base64.urlsafe_b64encode(raw).decode("ascii")
@@ -117,7 +126,7 @@ with st.expander("📘 Game Rules & How to Play", expanded=False):
 Score as many points as possible over **40 rounds**. Highest total wins.
 
 **Rounds & Targets**  
-- Targets cycle every round: **20 → 19 → 18 → Bullseye → repeat**.  
+- Targets cycle: **20 → 19 → 18 → Bullseye → repeat**.  
 - Enter your **9-dart total** for the shown target.  
   - Max per round: **27** (20/19/18) • **18** (Bullseye).
 
@@ -128,11 +137,11 @@ Score as many points as possible over **40 rounds**. Highest total wins.
 
 **Leaderboard**  
 - Shows the **Top 10** after each round.  
-- Also shows each human’s **rank + total**, even if outside Top 10.
+- Always shows each human’s **rank + total**, even if outside Top 10.
 
 **Save / Load (mobile-friendly)**  
-- Create a **Save Code** (text) to copy/paste—no files required.  
-- Paste that code later to **resume** on any device.
+- Generate a **Save Code** (text) to copy/paste—no files needed.  
+- Paste the code later to **resume** on any device.
 
 **New Match**  
 - Use **Change players / New match** in the sidebar to restart the 40-round cycle.
@@ -174,12 +183,12 @@ with st.expander("💾 Save / Load (copy/paste code)"):
             st.session_state.clear()
             st.rerun()
 
-# ====== Player setup (exactly 40 rounds; no round slider) ======
+# ====== Player setup (fixed 40 rounds) ======
 if not st.session_state.humans:
     st.subheader("👥 Add Human Players (up to 4)")
     names = [st.text_input(f"Player {i+1} name", key=f"name_{i}") for i in range(HUMAN_MAX_PLAYERS)]
     st.session_state.bot_level = st.selectbox("Bot Difficulty (1–20)", list(range(1,21)), index=st.session_state.bot_level-1)
-    if st.button("Start 40-Round Game"):
+    if st.button("Start 40-Round Game", type="primary"):
         humans = {n.strip(): [] for n in names if n and n.strip()}
         if not humans:
             st.error("Please enter at least one player name.")
@@ -189,7 +198,7 @@ if not st.session_state.humans:
             st.rerun()
     st.stop()
 
-# ====== Difficulty (fixed during match, but visible) ======
+# ====== Difficulty (fixed during match, visible) ======
 st.write(f"**Bot difficulty (1–20):** {st.session_state.bot_level}")
 
 # ====== Current round ======
@@ -241,8 +250,10 @@ def build_leaderboard():
     for name, scores in st.session_state.humans.items():
         rows.append({"Player": f"{name} (Human)", "Score": int(sum(scores)), "Type": "Human"})
     df = pd.DataFrame(rows)
-    if df.empty: return df, {}
-    df = df.sort_values("Score", ascending=False).reset_index(drop=True)  # HIGHER is better
+    if df.empty: 
+        return df, {}
+    # HIGHER score is better
+    df = df.sort_values("Score", ascending=False).reset_index(drop=True)
     df.insert(0, "Rank", range(1, len(df)+1))
     # map human ranks
     human_ranks = {}
@@ -255,16 +266,16 @@ def build_leaderboard():
             human_ranks[name] = (rank, total, len(df))
     return df, human_ranks
 
-if st.session_state.round > 1:
+if st.session_state.round >= 1:
     df, human_ranks = build_leaderboard()
-    st.subheader("📊 Leaderboard — Top 10")
-    st.dataframe(df.head(10), use_container_width=True, hide_index=True)
+    if not df.empty:
+        st.subheader("📊 Leaderboard — Top 10")
+        st.dataframe(df.head(10), use_container_width=True, hide_index=True)
+        # Humans’ positions always visible
+        for name, (rank, total, field) in human_ranks.items():
+            st.write(f"**{name}** — Total: {total}, Rank: **{rank}/{field}**")
 
-    # Humans’ positions always visible
-    for name, (rank, total, field) in human_ranks.items():
-        st.write(f"**{name}** — Total: {total}, Rank: **{rank}/{field}**")
-
-# ====== End of Game (Round 41 triggers end) ======
+# ====== End of Game (after round 40) ======
 if st.session_state.round > TOTAL_ROUNDS:
     st.success("🎉 Game Over! Thanks for playing.")
     # Build final and save highscores
@@ -275,7 +286,6 @@ if st.session_state.round > TOTAL_ROUNDS:
     st.session_state.highscores = sorted(st.session_state.highscores, key=lambda x: x["Score"], reverse=True)[:10]
     st.balloons()
 
-    # Play again / reset options
     c1, c2 = st.columns(2)
     with c1:
         if st.button("🎮 Play Again (same players)"):
@@ -294,12 +304,13 @@ if st.session_state.round > TOTAL_ROUNDS:
 st.subheader("🏅 Top 10 High Scores (this session)")
 if st.session_state.highscores:
     hs_df = pd.DataFrame(st.session_state.highscores)
-    hs_df = hs_df.sort_values("Score", ascending=True if False else False)  # already sorted desc
+    hs_df = hs_df.sort_values("Score", ascending=False)
     st.table(hs_df)
 else:
     st.caption("No finished games yet — complete a 40-round match to record results.")
 
 st.caption("Made by @pauldartbrain • questforqschool.com")
+
 
 
 
