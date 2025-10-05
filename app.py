@@ -1,163 +1,131 @@
-import os, io, json, time, random, sys, traceback
+import os
+import json
+import random
+import base64
+import datetime as dt
 import pandas as pd
 import streamlit as st
 
-# ==============================================================
-# 🎯 DARTS CHALLENGE — Streamlit Version
-# Supports local + Streamlit Cloud with secure Access Code
-# ==============================================================
+# ====== App config ======
+st.set_page_config(page_title="🎯 Darts Challenge", layout="centered")
 
-# ---------- Access Code (works both locally & in cloud) ----------
+# ====== Access code gate ======
 try:
-    ACCESS_CODE = st.secrets["ACCESS_CODE"]
+    ACCESS_CODE = st.secrets["ACCESS_CODE"]          # works on Streamlit Cloud
 except Exception:
-    ACCESS_CODE = os.getenv("ACCESS_CODE", "FREEPLAY2025")  # fallback for local dev
+    ACCESS_CODE = os.getenv("ACCESS_CODE", "FREEPLAY2025")  # local fallback
 
-# ---------- Page Setup ----------
-st.set_page_config(page_title="Darts Challenge", page_icon="🎯", layout="centered")
-
-# ---------- Access Gate ----------
 if "authed" not in st.session_state:
     st.session_state.authed = False
 
 if not st.session_state.authed:
     st.title("🎯 Welcome to Darts Challenge")
-    st.caption("Enter your unique access code below to play.")
+    st.write("Enter your unique access code below to play.")
     code = st.text_input("Access Code", type="password")
     if st.button("Enter"):
         if code.strip() == ACCESS_CODE:
             st.session_state.authed = True
             st.success("✅ Access granted. Welcome!")
-            st.experimental_rerun()
+            st.rerun()
         else:
-            st.error("❌ Invalid access code. Please try again.")
+            st.error("❌ Invalid access code.")
     st.stop()
 
-# ==============================================================
-# MAIN GAME SECTION
-# ==============================================================
+# ====== Game State ======
+if "scores" not in st.session_state:
+    st.session_state.scores = []
+if "players" not in st.session_state:
+    st.session_state.players = ["Paul Philpot"]
+if "highscores" not in st.session_state:
+    st.session_state.highscores = []
 
-st.title("🎯 Darts Challenge")
-
-# ---------- Rules Popup ----------
-with st.expander("📘 Game Rules (click to expand)"):
+# ====== Game Rules ======
+with st.expander("📜 Game Rules"):
     st.markdown("""
-    **How to Play:**
-    - Up to **4 human players** can join each game.
-    - Each round has a random target (Single, Double, Treble, Bullseye).
-    - The goal is to hit the target in as few darts as possible.
-    - Each player's score adds up across 30 rounds.
-    - After each game, the top scores are stored automatically.
-
-    **Scoring Summary:**
-    - Fewer darts = better score.
-    - Lowest total wins.
-
-    **Pro Tip:** Practice often — consistency pays off 🎯
+    - Up to **4 human players** can play per session.  
+    - Each round gives a random darts challenge target (single, double, treble, bullseye).  
+    - Players enter the number of darts needed to hit the target.  
+    - Fewer darts = better performance.  
+    - The lowest cumulative score wins.  
+    - After finishing a session, your best result is stored automatically in the **Top 10 Leaderboard**.
     """)
 
-# ---------- High Scores ----------
-HIGHSCORE_FILE = "highscores.json"
-
-def load_highscores():
-    if os.path.exists(HIGHSCORE_FILE):
-        try:
-            return json.load(open(HIGHSCORE_FILE, "r", encoding="utf-8"))
-        except:
-            return []
-    return []
-
-def save_highscores(data):
-    with open(HIGHSCORE_FILE, "w", encoding="utf-8") as f:
-        json.dump(data, f, indent=2)
-
-highscores = load_highscores()
-
-# ---------- Player Setup ----------
+# ====== Add Players ======
 st.header("👥 Add Human Players (up to 4)")
-col1, col2, col3, col4 = st.columns(4)
-players = []
-for i, c in enumerate([col1, col2, col3, col4], start=1):
-    name = c.text_input(f"Player {i} name", value=f"Player {i}" if i == 1 else "")
-    if name.strip():
-        players.append(name.strip())
+col1, col2 = st.columns(2)
+with col1:
+    for i in range(4):
+        pname = st.text_input(f"Player {i+1} name", value=st.session_state.players[i] if i < len(st.session_state.players) else "")
+        if pname and (i >= len(st.session_state.players)):
+            st.session_state.players.append(pname)
 
-if len(players) == 0:
-    st.warning("Please enter at least one player name.")
-    st.stop()
-
-# ---------- Start Game ----------
-if "game_started" not in st.session_state:
-    st.session_state.game_started = False
-    st.session_state.round_num = 0
-    st.session_state.scores = {p: [] for p in players}
-
+# ====== Start Game ======
 if st.button("Start Game"):
-    st.session_state.game_started = True
-    st.session_state.round_num = 1
-    st.session_state.scores = {p: [] for p in players}
-    st.success("🎯 Game started! Good luck.")
-    st.experimental_rerun()
+    st.session_state.scores = [
+        {"name": p, "score": 0, "round": 1, "history": []}
+        for p in st.session_state.players if p.strip()
+    ]
+    st.session_state.current_round = 1
+    st.session_state.round_active = True
+    st.rerun()
 
-# ---------- Game Logic ----------
-if st.session_state.game_started:
-    st.header(f"🏁 Round {st.session_state.round_num}/30")
+# ====== Play Rounds ======
+if st.session_state.get("round_active", False):
+    st.subheader(f"🎯 Round {st.session_state.current_round}")
+    par = random.choice(["Single 20", "Double 16", "Treble 19", "Bullseye"])
+    st.write(f"**Target:** {par}")
 
-    # Random target type
-    target_type = random.choice(["Single", "Double", "Treble", "Bullseye"])
-    st.subheader(f"🎯 Target: {target_type}")
+    for p in st.session_state.scores:
+        darts = st.number_input(f"{p['name']} – darts used", 1, 9, 3, key=f"darts_{p['name']}")
+        p["history"].append(darts)
+        p["score"] += darts
 
-    for player in players:
-        hits = st.number_input(f"{player} - Darts used:", 1, 9, 3, key=f"{player}_{st.session_state.round_num}")
+    if st.button("Next Round"):
+        st.session_state.current_round += 1
+        if st.session_state.current_round > 10:
+            st.session_state.round_active = False
+        st.rerun()
 
-        # Store result
-        if st.button(f"✅ Submit for {player}", key=f"submit_{player}_{st.session_state.round_num}"):
-            st.session_state.scores[player].append(hits)
-            st.success(f"Saved score for {player} — {hits} darts")
+# ====== End of Game ======
+if not st.session_state.get("round_active", True) and st.session_state.get("scores"):
+    st.success("🏁 Game Over!")
+    df = pd.DataFrame(
+        [{"Name": p["name"], "Total Darts": p["score"]} for p in st.session_state.scores]
+    ).sort_values("Total Darts")
+    st.dataframe(df, hide_index=True)
 
-    # Advance round
-    if st.button("➡️ Next Round"):
-        st.session_state.round_num += 1
-        if st.session_state.round_num > 30:
-            st.session_state.game_started = False
-            st.success("🏁 Game complete! Showing results...")
-            st.experimental_rerun()
-        else:
-            st.experimental_rerun()
+    # --- Save to highscores ---
+    for _, row in df.iterrows():
+        st.session_state.highscores.append({"Name": row["Name"], "Score": int(row["Total Darts"]), "Date": str(dt.date.today())})
 
-# ---------- Results ----------
-if not st.session_state.game_started and st.session_state.round_num > 0:
-    st.header("🏆 Final Results")
+    # Keep Top 10
+    st.session_state.highscores = sorted(st.session_state.highscores, key=lambda x: x["Score"])[:10]
+    st.session_state.scores = []  # clear current session
 
-    results = []
-    for p in players:
-        total = sum(st.session_state.scores[p])
-        results.append((p, total))
-    results.sort(key=lambda x: x[1])
+    st.balloons()
+    st.write("Your score has been saved to the Top 10 Leaderboard!")
 
-    df = pd.DataFrame(results, columns=["Player", "Total Darts"])
-    st.dataframe(df, use_container_width=True, hide_index=True)
+# ====== High-Scores Leaderboard ======
+st.subheader("🏆 Top 10 High Scores")
+if st.session_state.highscores:
+    hs_df = pd.DataFrame(st.session_state.highscores)
+    st.dataframe(hs_df, hide_index=True)
+else:
+    st.caption("No scores yet — play your first game!")
 
-    # Save highscores
-    for name, total in results:
-        highscores.append({"Name": name, "Score": total, "Timestamp": time.strftime("%Y-%m-%d %H:%M:%S")})
-    highscores = sorted(highscores, key=lambda x: x["Score"])[:10]
-    save_highscores(highscores)
+# ====== Save / Reset buttons ======
+c1, c2 = st.columns(2)
+with c1:
+    if st.button("💾 Save Data (local session)"):
+        st.success("Scores saved for this browser session.")
+with c2:
+    if st.button("♻️ Reset All Data"):
+        for k in ["scores", "players", "highscores", "round_active"]:
+            st.session_state.pop(k, None)
+        st.success("All data reset.")
+        st.rerun()
 
-    st.subheader("🏅 Top 10 All-Time Scores")
-    st.table(pd.DataFrame(highscores)[:10])
+st.caption("Access code can be updated anytime in your Streamlit Secrets.  Default: FREEPLAY2025")
 
-    if st.button("🔄 Reset Game"):
-        for key in list(st.session_state.keys()):
-            del st.session_state[key]
-        st.experimental_rerun()
-
-    if st.button("🗑 Reset All Data (Clear High Scores)"):
-        if os.path.exists(HIGHSCORE_FILE):
-            os.remove(HIGHSCORE_FILE)
-        st.success("All data cleared.")
-        st.experimental_rerun()
-
-st.caption("Darts Challenge © 2025 | FreePlay Edition | Made with ❤️ by Paul Philpot")
 
 
