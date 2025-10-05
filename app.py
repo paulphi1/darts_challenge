@@ -1,6 +1,15 @@
 import os, json, random, base64, datetime as dt
 import pandas as pd
 import streamlit as st
+st.markdown("""
+<script async src="https://www.googletagmanager.com/gtag/js?id=G-TEKF7YR4QH"></script>
+<script>
+  window.dataLayer = window.dataLayer || [];
+  function gtag(){dataLayer.push(arguments);}
+  gtag('js', new Date());
+  gtag('config', 'G-TEKF7YR4QH');
+</script>
+""", unsafe_allow_html=True)
 
 # =========================
 # DARTS CHALLENGE — 40 ROUNDS (fixed)
@@ -310,6 +319,7 @@ else:
     st.caption("No finished games yet — complete a 40-round match to record results.")
 
 st.caption("Made by @pauldartbrain • questforqschool.com")
+
 
 
 
