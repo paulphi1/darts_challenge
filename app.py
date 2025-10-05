@@ -1,6 +1,19 @@
 import os, json, random, base64, datetime as dt
 import pandas as pd
-import streamlit as st
+import streamlit as st    
+# Google Analytics tracking
+GA_TRACKING_ID = "G-TEKF7YR4QH"
+GA_TAG = f"""
+<script async src="https://www.googletagmanager.com/gtag/js?id={GA_TRACKING_ID}"></script>
+<script>
+  window.dataLayer = window.dataLayer || [];
+  function gtag(){{dataLayer.push(arguments);}}
+  gtag('js', new Date());
+  gtag('config', '{GA_TRACKING_ID}');
+</script>
+"""
+st.markdown(GA_TAG, unsafe_allow_html=True)
+
 
 # =========================
 # DARTS CHALLENGE (40 rounds)
@@ -287,6 +300,7 @@ else:
     st.caption("No finished games yet — complete a 40-round match to record results.")
 
 st.caption("Made by @pauldartbrain • questforqschool.com")
+
 
 
 
