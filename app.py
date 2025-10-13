@@ -16,27 +16,9 @@ st.markdown("""
 # =========================
 st.set_page_config(page_title="Darts Challenge", page_icon="🎯", layout="centered")
 
-# ----- Access Code (Cloud + local) -----
-try:
-    ACCESS_CODE = st.secrets["ACCESS_CODE"]
-except Exception:
-    ACCESS_CODE = os.getenv("ACCESS_CODE", "FREEPLAY2025")  # fallback
+# --- remove gate; make app open ---
+st.success("Welcome to Darts Challenge — Free to Play!")
 
-if "authed" not in st.session_state:
-    st.session_state.authed = False
-
-if not st.session_state.authed:
-    st.title("🎯 Darts Challenge")
-    st.caption("Enter the access code to play.")
-    code = st.text_input("Access Code", type="password")
-    if st.button("Enter"):
-        if code.strip() == ACCESS_CODE:
-            st.session_state.authed = True
-            st.success("✅ Access granted!")
-            st.rerun()
-        else:
-            st.error("❌ Invalid code. Try again.")
-    st.stop()
 
 # ----- Google Analytics (GA4) -----
 GA_MEASUREMENT_ID = None
@@ -319,6 +301,7 @@ else:
     st.caption("No finished games yet — complete a 40-round match to record results.")
 
 st.caption("Made by @pauldartbrain • questforqschool.com")
+
 
 
 
